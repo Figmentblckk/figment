@@ -38,7 +38,7 @@ def proxy():
             data=data,
             headers={
                 "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2022-06-01",
+                "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             },
             method="POST"
