@@ -85,24 +85,3 @@ def proxy_stream():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
-            "https://api.anthropic.com/v1/messages",
-            data=data,
-            headers={
-                "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-            return cors(jsonify(result), 200)
-    except urllib.error.HTTPError as e:
-        result = json.loads(e.read().decode("utf-8"))
-        return cors(jsonify(result), e.code)
-    except Exception as e:
-        return cors(jsonify({"error": str(e)}), 500)
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
