@@ -1,0 +1,14 @@
+{
+  "screenshot_scale": 0.5,
+  "tree_depth": 4,
+  "tree_max_children": 30,
+  "models": {
+    "analysis": "claude-haiku-4-5-20251001",
+    "chat": "claude-sonnet-4-20250514",
+    "rename": "claude-haiku-4-5-20251001",
+    "autolayout": "claude-haiku-4-5-20251001"
+  },
+  "cache_prompts": true,
+  "undo_before_action": true,
+  "autolayout_preview": true
+}
