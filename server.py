@@ -1,7 +1,7 @@
 import os
 import json
 import urllib.request
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response, Response, stream_with_context
 
 app = Flask(__name__)
 
@@ -23,17 +23,68 @@ def health():
 def proxy():
     if request.method == "OPTIONS":
         return cors("", 204)
-
-    if PLUGIN_SECRET and request.headers.get("x-plugin-secret") != PLUGIN_SECRET:
-        return cors(jsonify({"error": "Unauthorized"}), 401)
-
     body = request.get_json()
     if not body:
         return cors(jsonify({"error": "No body"}), 400)
-
     try:
         data = json.dumps(body).encode("utf-8")
         req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=data,
+            headers={
+                "x-api-key": ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            return cors(jsonify(result), 200)
+    except urllib.error.HTTPError as e:
+        result = json.loads(e.read().decode("utf-8"))
+        return cors(jsonify(result), e.code)
+    except Exception as e:
+        return cors(jsonify({"error": str(e)}), 500)
+
+@app.route("/claude-stream", methods=["POST", "OPTIONS"])
+def proxy_stream():
+    if request.method == "OPTIONS":
+        return cors("", 204)
+    body = request.get_json()
+    if not body:
+        return cors(jsonify({"error": "No body"}), 400)
+    body["stream"] = True
+
+    def generate():
+        try:
+            data = json.dumps(body).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=data,
+                headers={
+                    "x-api-key": ANTHROPIC_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                for line in resp:
+                    yield line.decode("utf-8")
+        except Exception as e:
+            yield "data: " + json.dumps({"error": str(e)}) + "\n\n"
+
+    r = Response(stream_with_context(generate()), content_type="text/event-stream")
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    r.headers["Cache-Control"] = "no-cache"
+    r.headers["X-Accel-Buffering"] = "no"
+    return r
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
             "https://api.anthropic.com/v1/messages",
             data=data,
             headers={
