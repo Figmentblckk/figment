@@ -1,7 +1,7 @@
 {
   "screenshot_scale": 0.5,
-  "tree_depth": 4,
-  "tree_max_children": 30,
+  "tree_depth": 2,
+  "tree_max_children": 15,
   "models": {
     "analysis": "claude-haiku-4-5-20251001",
     "chat": "claude-sonnet-4-20250514",
