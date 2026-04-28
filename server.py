@@ -82,6 +82,26 @@ def proxy_stream():
     r.headers["X-Accel-Buffering"] = "no"
     return r
 
+REPO_RAW = 'https://raw.githubusercontent.com/Figmentblckk/figment/refs/heads/main/prompts/'
+
+@app.route("/prompt/<name>", methods=["GET", "OPTIONS"])
+def get_prompt(name):
+    if request.method == "OPTIONS":
+        return cors("", 204)
+    allowed = ['analyze_frame.md','rename_layers.md','ai_normalize.md','smart_autolayout.md','audit_colors.md','annotate.md','config.json']
+    if name not in allowed:
+        return cors(jsonify({"error": "Not found"}), 404)
+    try:
+        req = urllib.request.Request(REPO_RAW + name)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            content = resp.read().decode('utf-8')
+            r = make_response(content, 200)
+            r.headers["Access-Control-Allow-Origin"] = "*"
+            r.headers["Content-Type"] = "text/plain; charset=utf-8"
+            return r
+    except Exception as e:
+        return cors(jsonify({"error": str(e)}), 500)
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
