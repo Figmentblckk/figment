@@ -1,11 +1,19 @@
 import os
-import httpx
-from flask import Flask, request, jsonify
+import json
+import urllib.request
+from flask import Flask, request, jsonify, make_response
 
 app = Flask(__name__)
 
 ANTHROPIC_KEY = os.getenv("ANTHROPIC_TOKEN")
 PLUGIN_SECRET = os.getenv("PLUGIN_SECRET", "")
+
+def cors(response, status=200):
+    r = make_response(response, status)
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    r.headers["Access-Control-Allow-Headers"] = "Content-Type, x-plugin-secret"
+    r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    return r
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -24,31 +32,25 @@ def proxy():
         return cors(jsonify({"error": "No body"}), 400)
 
     try:
-        resp = httpx.post(
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
             "https://api.anthropic.com/v1/messages",
+            data=data,
             headers={
                 "x-api-key": ANTHROPIC_KEY,
                 "anthropic-version": "2022-06-01",
                 "content-type": "application/json",
             },
-            json=body,
-            timeout=30,
+            method="POST"
         )
-        return cors(jsonify(resp.json()), resp.status_code)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            return cors(jsonify(result), 200)
+    except urllib.error.HTTPError as e:
+        result = json.loads(e.read().decode("utf-8"))
+        return cors(jsonify(result), e.code)
     except Exception as e:
         return cors(jsonify({"error": str(e)}), 500)
-
-def cors(response, status=200):
-    if isinstance(response, str):
-        from flask import make_response
-        r = make_response(response, status)
-    else:
-        from flask import make_response
-        r = make_response(response, status)
-    r.headers["Access-Control-Allow-Origin"] = "*"
-    r.headers["Access-Control-Allow-Headers"] = "Content-Type, x-plugin-secret"
-    r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    return r
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
