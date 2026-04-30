@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Inter, -apple-system, sans-serif;
+  font-size: 12px;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+}
+.logo-dot {
+  width: 18px; height: 18px;
+  background: #7B5EF8;
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+}
+.selection-pill {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: #aaa;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selection-pill.active { color: #7B5EF8; border-color: #7B5EF8; background: #1e1730; }
+.chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.chat::-webkit-scrollbar { width: 4px; }
+.chat::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+.msg { display: flex; flex-direction: column; gap: 4px; }
+.msg.user { align-items: flex-end; }
+.msg.ai { align-items: flex-start; }
+.bubble {
+  max-width: 92%;
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.bubble.user { background: #7B5EF8; color: #fff; border-bottom-right-radius: 3px; }
+.bubble.ai { background: #2a2a2a; color: #e0e0e0; border-bottom-left-radius: 3px; border: 1px solid #383838; }
+.bubble.ai b { color: #fff; font-weight: 600; }
+.bubble.ai i { color: #bbb; font-style: italic; }
+.bubble.ai code { background: #333; padding: 1px 5px; border-radius: 3px; font-family: monospace; font-size: 11px; color: #c4b5fd; }
+.bubble.ai h3 { font-size: 12px; font-weight: 600; color: #fff; margin: 6px 0 2px; }
+.bubble.ai ul { padding-left: 14px; margin: 4px 0; }
+.bubble.ai ul li { margin: 2px 0; }
+.bubble.streaming::after { content: '▋'; display: inline-block; animation: cursor 0.8s infinite; color: #7B5EF8; font-size: 11px; }
+@keyframes cursor { 0%,100%{opacity:1} 50%{opacity:0} }
+.typing { display: flex; align-items: center; gap: 4px; padding: 8px 11px; background: #2a2a2a; border: 1px solid #383838; border-radius: 10px; border-bottom-left-radius: 3px; width: fit-content; }
+.typing span { width: 5px; height: 5px; background: #7B5EF8; border-radius: 50%; animation: blink 1.2s infinite; }
+.typing span:nth-child(2) { animation-delay: 0.2s; }
+.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+.actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+.action-btn { background: #2a2a2a; border: 1px solid #444; border-radius: 8px; padding: 8px 10px; color: #e0e0e0; font-size: 11px; font-weight: 500; cursor: pointer; text-align: left; transition: all 0.15s; line-height: 1.3; }
+.action-btn:hover { background: #333; border-color: #7B5EF8; color: #fff; }
+.action-btn .icon { font-size: 13px; display: block; margin-bottom: 3px; }
+.choice-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.choice-btn { background: #1e1730; border: 1px solid #7B5EF8; border-radius: 20px; padding: 5px 12px; color: #c4b5fd; font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.choice-btn:hover { background: #2a1f50; color: #fff; }
+.use-selected-btn { background: #2a2a2a; border: 1px dashed #555; border-radius: 8px; padding: 7px 10px; color: #aaa; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.15s; width: 100%; margin-top: 6px; }
+.use-selected-btn:hover { border-color: #7B5EF8; color: #c4b5fd; }
+.bottom { border-top: 1px solid #333; padding: 8px 10px; flex-shrink: 0; }
+.analyze-row { display: flex; gap: 8px; align-items: center; }
+.analyze-btn { flex: 1; background: #7B5EF8; border: none; border-radius: 8px; padding: 9px 14px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+.analyze-btn:hover { background: #6a4fe0; }
+.analyze-btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+.reset-btn { background: #2a2a2a; border: 1px solid #444; border-radius: 8px; padding: 9px 11px; color: #aaa; font-size: 11px; cursor: pointer; }
+.reset-btn:hover { background: #333; color: #fff; }
+.input-row { display: flex; gap: 7px; align-items: flex-end; }
+.text-input { flex: 1; background: #2a2a2a; border: 1px solid #444; border-radius: 8px; padding: 8px 10px; color: #e0e0e0; font-size: 12px; font-family: inherit; resize: none; outline: none; line-height: 1.4; min-height: 34px; max-height: 80px; }
+.text-input:focus { border-color: #7B5EF8; }
+.text-input::placeholder { color: #666; }
+.send-btn { background: #7B5EF8; border: none; border-radius: 8px; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.send-btn:hover { background: #6a4fe0; }
+.empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; text-align: center; }
+.empty-icon { width: 40px; height: 40px; background: #2a2a2a; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+.hint { font-size: 11px; color: #555; line-height: 1.5; }
+.hidden { display: none !important; }
+.mem-badge { font-size: 10px; color: #555; padding: 2px 6px; border-radius: 10px; background: #222; border: 1px solid #333; margin-left: 4px; }
+.config-badge { font-size: 10px; color: #1D9E75; padding: 2px 6px; border-radius: 10px; background: #0a1f18; border: 1px solid #1D9E75; margin-left: 4px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="config-badge" id="configBadge">● config</span>
+    <span class="mem-badge" id="memBadge" style="display:none">● память</span>
+  </div>
+  <div class="selection-pill" id="selPill">Ничего не выбрано</div>
+</div>
+
+<div class="chat" id="chat">
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <rect x="3" y="3" width="6" height="6" rx="1.5" fill="#555"/>
+        <rect x="11" y="3" width="6" height="6" rx="1.5" fill="#555"/>
+        <rect x="3" y="11" width="6" height="6" rx="1.5" fill="#555"/>
+        <rect x="11" y="11" width="6" height="6" rx="1.5" fill="#555"/>
+      </svg>
+    </div>
+    <div style="color:#888;font-weight:500;">Выдели фрейм</div>
+    <div class="hint">Выбери любой фрейм в Figma<br>и нажми «AI анализ»</div>
+  </div>
+</div>
+
+<div class="bottom">
+  <div class="analyze-row" id="analyzeRow">
+    <button class="analyze-btn" id="analyzeBtn" onclick="startAnalysis()">✦ AI анализ</button>
+    <button class="reset-btn hidden" id="resetBtn" onclick="resetChat()">Сброс</button>
+  </div>
+  <div class="input-row hidden" id="inputRow">
+    <textarea class="text-input" id="userInput" placeholder="Напиши ответ..." rows="1" onkeydown="handleKey(event)"></textarea>
+    <button class="send-btn" onclick="sendUserMessage()">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 7h10M7 2l5 5-5 5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+var PROXY_URL = 'https://figment-production.up.railway.app/claude';
+var PROXY_STREAM_URL = 'https://figment-production.up.railway.app/claude-stream';
+var REPO_RAW = 'https://raw.githubusercontent.com/Figmentblckk/figment/refs/heads/main/prompts/';
+var PROMPT_API = 'https://figment-production.up.railway.app/prompt/';
+
+// Runtime config - overridden by config.json from repo
+var CFG = {
+  screenshot_scale: 0.5,
+  tree_depth: 4,
+  tree_max_children: 30,
+  models: {
+    analysis: 'claude-haiku-4-5-20251001',
+    chat: 'claude-sonnet-4-20250514',
+    rename: 'claude-haiku-4-5-20251001',
+    autolayout: 'claude-sonnet-4-20250514'
+  },
+  cache_prompts: true,
+  undo_before_action: true,
+  autolayout_preview: true
+};
+
+var PROMPTS = {};
+var state = 'idle';
+var currentAction = null;
+var frameData = null;
+var conversationHistory = [];
+var pendingFrameCallback = null;
+var pendingInputCallback = null;
+var memory = {};
+
+function el(id) { return document.getElementById(id); }
+function scrollBottom() { var c = el('chat'); setTimeout(function() { c.scrollTop = c.scrollHeight; }, 50); }
+function hideEmpty() { var e = el('emptyState'); if (e) e.remove(); }
+
+// Load config + prompts from repo
+function loadRemoteAssets() {
+  fetch(PROMPT_API + 'config.json')
+    .then(function(r) {
+      if (!r.ok) throw new Error('config HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(cfg) {
+      CFG = Object.assign(CFG, cfg);
+      if (cfg.models) CFG.models = Object.assign(CFG.models, cfg.models);
+      el('configBadge').style.display = 'inline';
+    })
+    .catch(function(e) { console.log('Config load error:', e.message); });
+
+  var files = ['analyze_frame','rename_layers','ai_normalize','smart_autolayout','audit_colors','annotate','extract_components'];
+  var loaded = 0;
+  files.forEach(function(name) {
+    fetch(PROMPT_API + name + '.md')
+      .then(function(r) {
+        if (!r.ok) throw new Error(name + ' HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(text) {
+        PROMPTS[name] = text;
+        loaded++;
+        console.log('Prompt loaded: ' + name + ' (' + loaded + '/' + files.length + ')');
+        if (loaded === files.length) el('configBadge').style.display = 'inline';
+      })
+      .catch(function(e) { console.log('Prompt error: ' + e.message); });
+  });
+}
+
+function getPrompt(name) { return PROMPTS[name] || null; }
+
+// Memory
+function saveMemory(key, value) {
+  memory[key] = value;
+  try { localStorage.setItem('figment_memory', JSON.stringify(memory)); } catch(e) {}
+  parent.postMessage({ pluginMessage: { type: 'save-memory', memory: memory } }, '*');
+}
+
+function loadMemory() {
+  try {
+    var saved = localStorage.getItem('figment_memory');
+    if (saved) {
+      memory = JSON.parse(saved);
+      if (Object.keys(memory).length) el('memBadge').style.display = 'inline';
+      return;
+    }
+  } catch(e) {}
+  parent.postMessage({ pluginMessage: { type: 'load-memory' } }, '*');
+}
+
+function getMemoryContext() {
+  var keys = Object.keys(memory);
+  if (!keys.length) return '';
+  return 'Context: ' + keys.map(function(k) { return k + '=' + memory[k]; }).join(', ') + '.';
+}
+
+// Markdown formatter
+function fmt(text) {
+  if (!text) return '';
+  var s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+  s = s.replace(/\*([^*\n]+)\*/g, '<i>$1</i>');
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  s = s.replace(/((?:^[-\u2022] .+\n?)+)/gm, function(match) {
+    var items = match.trim().split('\n').map(function(l) { return '<li>' + l.replace(/^[-\u2022] /, '') + '</li>'; }).join('');
+    return '<ul>' + items + '</ul>';
+  });
+  s = s.replace(/\n\n+/g, '</p><p>');
+  s = s.replace(/\n/g, '<br>');
+  if (s.indexOf('<p>') === -1 && s.indexOf('<ul>') === -1 && s.indexOf('<h3>') === -1) s = '<p>' + s + '</p>';
+  return s;
+}
+
+function addBubble(role, text) {
+  hideEmpty();
+  var msg = document.createElement('div');
+  msg.className = 'msg ' + role;
+  var b = document.createElement('div');
+  b.className = 'bubble ' + role;
+  b.innerHTML = role === 'ai' ? fmt(text) : text;
+  msg.appendChild(b);
+  el('chat').appendChild(msg);
+  scrollBottom();
+  return b;
+}
+
+function addStreamBubble() {
+  hideEmpty();
+  var msg = document.createElement('div');
+  msg.className = 'msg ai';
+  var b = document.createElement('div');
+  b.className = 'bubble ai streaming';
+  msg.appendChild(b);
+  el('chat').appendChild(msg);
+  scrollBottom();
+  return b;
+}
+
+function addTyping() {
+  hideEmpty();
+  var wrap = document.createElement('div');
+  wrap.className = 'msg ai';
+  wrap.id = 'typing';
+  wrap.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  el('chat').appendChild(wrap);
+  scrollBottom();
+}
+
+function removeTyping() { var t = el('typing'); if (t) t.remove(); }
+
+function addActionsGrid(actions) {
+  var wrap = document.createElement('div');
+  wrap.className = 'msg ai';
+  var grid = document.createElement('div');
+  grid.className = 'actions-grid';
+  actions.forEach(function(a) {
+    var btn = document.createElement('button');
+    btn.className = 'action-btn';
+    btn.innerHTML = '<span class="icon">' + a.icon + '</span>' + a.label;
+    btn.onclick = function() { handleAction(a); };
+    grid.appendChild(btn);
+  });
+  wrap.appendChild(grid);
+  el('chat').appendChild(wrap);
+  scrollBottom();
+}
+
+function addChoices(question, options, onSelect, withFramePicker) {
+  hideEmpty();
+  var wrap = document.createElement('div');
+  wrap.className = 'msg ai';
+  var inner = document.createElement('div');
+  if (question) {
+    var q = document.createElement('div');
+    q.className = 'bubble ai';
+    q.innerHTML = fmt(question);
+    wrap.appendChild(q);
+  }
+  var btns = document.createElement('div');
+  btns.className = 'choice-btns';
+  options.forEach(function(opt) {
+    var btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = opt;
+    btn.onclick = function() {
+      addBubble('user', opt);
+      inner.remove();
+      pendingInputCallback = null;
+      onSelect(opt);
+    };
+    btns.appendChild(btn);
+  });
+  inner.appendChild(btns);
+
+  pendingInputCallback = function(val) {
+    addBubble('user', val);
+    inner.remove();
+    pendingInputCallback = null;
+    onSelect(val);
+  };
+
+  if (withFramePicker) {
+    var useBtn = document.createElement('button');
+    useBtn.className = 'use-selected-btn';
+    useBtn.textContent = '+ использовать выбранный фрейм';
+    useBtn.onclick = function() {
+      parent.postMessage({ pluginMessage: { type: 'use-selected-frame' } }, '*');
+      pendingFrameCallback = function(name) {
+        addBubble('user', '📎 ' + name);
+        inner.remove();
+        pendingInputCallback = null;
+        onSelect('frame:' + name);
+      };
+    };
+    inner.appendChild(useBtn);
+  }
+
+  wrap.appendChild(inner);
+  el('chat').appendChild(wrap);
+  scrollBottom();
+}
+
+function showInputRow() {
+  el('analyzeRow').classList.add('hidden');
+  el('inputRow').classList.remove('hidden');
+  setTimeout(function() { el('userInput').focus(); }, 100);
+}
+
+function showAnalyzeRow() {
+  el('inputRow').classList.add('hidden');
+  el('analyzeRow').classList.remove('hidden');
+  el('resetBtn').classList.remove('hidden');
+}
+
+function resetChat() {
+  conversationHistory = [];
+  frameData = null;
+  currentAction = null;
+  state = 'idle';
+  pendingFrameCallback = null;
+  pendingInputCallback = null;
+  el('resetBtn').classList.add('hidden');
+  el('analyzeRow').classList.remove('hidden');
+  el('inputRow').classList.add('hidden');
+  el('analyzeBtn').disabled = false;
+  el('chat').innerHTML = '<div class="empty-state" id="emptyState"><div class="empty-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="6" height="6" rx="1.5" fill="#555"/><rect x="11" y="3" width="6" height="6" rx="1.5" fill="#555"/><rect x="3" y="11" width="6" height="6" rx="1.5" fill="#555"/><rect x="11" y="11" width="6" height="6" rx="1.5" fill="#555"/></svg></div><div style="color:#888;font-weight:500;">Выдели фрейм</div><div class="hint">Выбери любой фрейм в Figma<br>и нажми <<AI анализ>></div></div>';
+}
+
+// API calls
+function callClaude(messages, systemPrompt, model, maxTokens) {
+  return new Promise(function(resolve, reject) {
+    fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model || CFG.models.chat, max_tokens: maxTokens || 1024, system: systemPrompt, messages: messages })
+    }).then(function(resp) {
+      return resp.json().then(function(data) {
+        if (!resp.ok) { reject(new Error('HTTP ' + resp.status + ': ' + (data.error ? data.error.message : JSON.stringify(data)))); return; }
+        if (!data.content || !data.content[0]) { reject(new Error('Пустой ответ')); return; }
+        resolve(data.content[0].text);
+      });
+    }).catch(function(e) { reject(new Error('Сеть: ' + e.message)); });
+  });
+}
+
+function callClaudeStream(messages, systemPrompt, model, onChunk) {
+  return new Promise(function(resolve, reject) {
+    fetch(PROXY_STREAM_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model || CFG.models.chat, max_tokens: 1024, system: systemPrompt, messages: messages, stream: true })
+    }).then(function(resp) {
+      if (!resp.ok) { resp.json().then(function(d) { reject(new Error('HTTP ' + resp.status + ': ' + (d.error ? d.error.message : ''))); }); return; }
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder();
+      var fullText = '';
+      function read() {
+        reader.read().then(function(result) {
+          if (result.done) { resolve(fullText); return; }
+          var chunk = decoder.decode(result.value, { stream: true });
+          chunk.split('\n').forEach(function(line) {
+            if (!line.startsWith('data: ')) return;
+            var data = line.slice(6).trim();
+            if (data === '[DONE]') return;
+            try {
+              var parsed = JSON.parse(data);
+              if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
+                fullText += parsed.delta.text;
+                onChunk(fullText);
+              }
+            } catch(e) {}
+          });
+          read();
+        }).catch(reject);
+      }
+      read();
+    }).catch(function(e) { reject(new Error('Сеть: ' + e.message)); });
+  });
+}
+
+function parseJSON(raw) {
+  // Strip everything before first { and after last }
+  var start = raw.indexOf('{');
+  var end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('No JSON: ' + raw.slice(0, 80));
+  var json = raw.slice(start, end + 1);
+  return JSON.parse(json);
+}
+
+// Action execution
+function executeAction(actionId) {
+  if (actionId === 'rename_layers') {
+    addBubble('ai', 'Собираю дерево слоёв...');
+    parent.postMessage({ pluginMessage: { type: 'ai-rename-prepare' } }, '*');
+  } else if (actionId === 'extract_components') {
+    addBubble('ai', 'Ищу UI компоненты...');
+    parent.postMessage({ pluginMessage: { type: 'extract-components-prepare' } }, '*');
+  } else if (actionId === 'smart_autolayout') {
+    addBubble('ai', 'Делаю скриншот и анализирую структуру...');
+    parent.postMessage({ pluginMessage: { type: 'smart-autolayout-prepare', scale: CFG.screenshot_scale, treeDepth: CFG.tree_depth, treeMaxChildren: CFG.tree_max_children } }, '*');
+  } else if (actionId === 'apply_autolayout') {
+    parent.postMessage({ pluginMessage: { type: 'apply-autolayout' } }, '*');
+  } else if (actionId === 'ai_normalize') {
+    addChoices('Какой шрифт использовать?', ['Inter', 'Roboto', 'SF Pro', 'Оставить текущий'], function(val) {
+      var fontFamily = val === 'Оставить текущий' ? null : val;
+      addBubble('ai', 'Нормализую шрифты...');
+      parent.postMessage({ pluginMessage: { type: 'ai-normalize', fontFamily: fontFamily } }, '*');
+    });
+  } else {
+    addBubble('ai', 'Действие **' + actionId + '** -- следующая версия.');
+  }
+}
+
+// Smart autolayout
+var _autolayoutProcessing = false;
+function handleSmartAutolayoutData(data) {
+  if (_autolayoutProcessing) return;
+  _autolayoutProcessing = true;
+  addTyping();
+  var sys = getPrompt('smart_autolayout') || 'Analyze the Figma frame screenshot and layer tree. Return auto-layout plan as JSON.';
+
+  var messages = [{
+    role: 'user',
+    content: [
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: data.image } },
+      { type: 'text', text: 'Frame: ' + data.frameName + '\n\nLayer tree:\n' + JSON.stringify(data.tree, null, 1) }
+    ]
+  }];
+
+  callClaude(messages, sys, CFG.models.autolayout, 4096).then(function(raw) {
+    _autolayoutProcessing = false;
+    removeTyping();
+    var plan;
+    try { plan = parseJSON(raw); } catch(e) {
+      addBubble('ai', 'Ошибка парсинга: ' + raw.slice(0, 150));
+      return;
+    }
+    var total = countContainers(plan.containers || []);
+    var skipped = (plan.skipped || []).length;
+
+    if (CFG.autolayout_preview) {
+      addBubble('ai', 'План готов: **' + total + ' контейнеров**' + (skipped ? ', ' + skipped + ' пропущено' : '') + '.\n\nПрименить?');
+      addChoices(null, ['✅ Применить', '❌ Отмена'], function(val) {
+        if (val === '✅ Применить') {
+          addBubble('ai', 'Применяю...');
+          parent.postMessage({ pluginMessage: { type: 'smart-autolayout-apply', plan: plan } }, '*');
+        } else {
+          addBubble('ai', 'Отменено.');
+        }
+      });
+    } else {
+      parent.postMessage({ pluginMessage: { type: 'smart-autolayout-apply', plan: plan } }, '*');
+    }
+  }).catch(function(e) {
+    _autolayoutProcessing = false;
+    removeTyping();
+    addBubble('ai', 'Ошибка: ' + e.message);
+  });
+}
+
+function countContainers(containers) {
+  var count = 0;
+  containers.forEach(function(c) { count++; if (c.children) count += countContainers(c.children); });
+  return count;
+}
+
+// AI rename
+function handleExtractComponentsTree(data) {
+  addTyping();
+  var sys = getPrompt('extract_components') || 'Find standard UI components (button,input,checkbox,radio,toggle,select,badge,toast,tooltip,modal,tab,avatar,card) in the Figma layer tree. Return ONLY this exact JSON: {"found":[{"type":"button","label":"Button","nodeId":"id","nodeName":"name","states":["Default","Hover","Pressed","Disabled","Loading"]}],"total":1,"summary":"Found 1 component"}. States per type - button:Default,Hover,Pressed,Disabled,Loading / input:Default,Focus,Filled,Error,Disabled / checkbox:Default,Hover,Checked,Disabled / radio:Default,Hover,Checked,Disabled / toggle:Off,On,Disabled / others:Default. Only ONE instance per component type. No extra fields.';
+  var prompt = 'Find standard UI components in this frame layer tree.\n\nFrame: ' + data.frameName + '\n\nTree:\n' + JSON.stringify(data.tree, null, 1);
+
+  callClaude([{ role: 'user', content: prompt }], sys, CFG.models.analysis).then(function(raw) {
+    removeTyping();
+    var result;
+    try { result = parseJSON(raw); } catch(e) {
+      addBubble('ai', 'Ошибка парсинга: ' + raw.slice(0, 150));
+      return;
+    }
+
+    if (!result.found || !result.found.length) {
+      addBubble('ai', 'Стандартных UI компонентов не найдено.');
+      showAnalyzeRow();
+      return;
+    }
+
+    addBubble('ai', result.summary + '\n\nВынести на отдельный фрейм?');
+
+    var compList = result.found.map(function(c) {
+      return c.label + ' (' + c.states.length + ' стейтов)';
+    }).join('\n');
+    addBubble('ai', compList);
+
+    addChoices(null, ['✅ Вынести все', '❌ Отмена'], function(val) {
+      if (val === '✅ Вынести все') {
+        addBubble('ai', 'Создаю фрейм со стейтами...');
+        parent.postMessage({ pluginMessage: { type: 'extract-components-apply', components: result.found } }, '*');
+      } else {
+        addBubble('ai', 'Отменено.');
+      }
+    });
+    showAnalyzeRow();
+  }).catch(function(e) {
+    removeTyping();
+    addBubble('ai', 'Ошибка: ' + e.message);
+    showAnalyzeRow();
+  });
+}
+
+function handleAiRenameTree(tree) {
+  addTyping();
+  var sys = getPrompt('rename_layers') || 'You are a Figma design system expert. Return ONLY valid JSON, no markdown.';
+  var prompt = 'Rename Figma layers using BEM UI naming. Return ONLY JSON: {"id":"name"} for every node.\n\nTree:\n' + JSON.stringify(tree);
+
+  callClaude([{ role: 'user', content: prompt }], sys, CFG.models.rename).then(function(raw) {
+    removeTyping();
+    var map;
+    try { map = parseJSON(raw); } catch(e) { addBubble('ai', 'Ошибка парсинга: ' + raw.slice(0, 150)); return; }
+    parent.postMessage({ pluginMessage: { type: 'ai-rename-apply', map: map } }, '*');
+  }).catch(function(e) { removeTyping(); addBubble('ai', 'Ошибка: ' + e.message); });
+}
+
+function startAnalysis() {
+  el('analyzeBtn').disabled = true;
+  parent.postMessage({ pluginMessage: { type: 'analyze' } }, '*');
+}
+
+function runAnalysis(data) {
+  frameData = data;
+  state = 'analyzing';
+  addBubble('user', 'Анализирую ' + data.name);
+  addTyping();
+
+  var memCtx = getMemoryContext();
+  var sys = getPrompt('analyze_frame') || 'Analyze this Figma frame and return ONLY raw JSON (no markdown). Format: {"analysis":"2-3 sentences in Russian describing what this screen is and what the user can do here. Be specific and natural, mention key UI elements. Example: Na freyme raspolozhena stranitsa dokumentov s tablitsey kontragentov. Polzovatel mozhet prosmatrivat spisok i redaktirovat zapisi.","actions":[{"icon":"emoji","label":"3 words RU","id":"action_id","description":"desc"}]}. Pick 4 most relevant from: make_responsive,rename_layers,audit_colors,annotate,smart_autolayout,ai_normalize,extract_components.';
+  if (memCtx) sys += '\n' + memCtx;
+
+  var isComp = data.type === 'COMPONENT' || data.type === 'COMPONENT_SET' || data.type === 'INSTANCE';
+  var prompt = (isComp ? 'Component: ' : 'Screen: ') + JSON.stringify(data, null, 1);
+  conversationHistory = [{ role: 'user', content: prompt }];
+
+  callClaude(conversationHistory, sys, CFG.models.analysis).then(function(raw) {
+    conversationHistory.push({ role: 'assistant', content: raw });
+    removeTyping();
+    var parsed;
+    try { parsed = parseJSON(raw); } catch(e) {
+      addBubble('ai', 'Сырой ответ Claude:\n' + raw.slice(0, 400));
+      showAnalyzeRow(); el('analyzeBtn').disabled = false; return;
+    }
+    addBubble('ai', parsed.analysis || '');
+    if (parsed.actions && parsed.actions.length) {
+      addBubble('ai', 'Что можно сделать:');
+      addActionsGrid(parsed.actions.slice(0, 4));
+    }
+    addActionsGrid([
+      { icon: '🧩', label: 'Найти компоненты', id: 'extract_components', description: 'Найти UI компоненты и создать стейты' },
+      { icon: '🧠', label: 'Умный лейаут', id: 'smart_autolayout', description: 'AI анализ структуры' },
+      { icon: '✨', label: 'AI нормализация', id: 'ai_normalize', description: 'Нормализация шрифтов' }
+    ]);
+    saveMemory('last_screen', data.name);
+    state = 'actions';
+    showAnalyzeRow();
+    el('analyzeBtn').disabled = false;
+  }).catch(function(e) {
+    removeTyping();
+    addBubble('ai', 'Ошибка: ' + e.message);
+    showAnalyzeRow(); el('analyzeBtn').disabled = false;
+  });
+}
+
+function handleAction(action) {
+  currentAction = action;
+  state = 'flow';
+  addBubble('user', action.icon + ' ' + action.label);
+
+  var flowChoices = {
+    make_responsive: { q: 'Под какой брейкпоинт?', opts: ['375px -- мобайл', '768px -- планшет', '375 + 768'], exec: function(val) { saveMemory('responsive_bp', val); executeAction('make_responsive'); } },
+    rename_layers: { q: 'Соглашение:', opts: ['BEM -- header__logo', 'camelCase -- headerLogo', 'AI выберет сам'], exec: function(val) { saveMemory('naming', val); executeAction('rename_layers'); } },
+    smart_autolayout: { q: null, opts: ['🚀 Запустить анализ'], exec: function() { executeAction('smart_autolayout'); } },
+    audit_colors: { q: 'Есть библиотека переменных?', opts: ['Да', 'Нет'], exec: function(val) { executeAction('audit_colors'); } },
+    annotate: { q: 'Для кого?', opts: ['Разработчики', 'PM', 'Стейкхолдеры'], exec: function(val) { saveMemory('annotation_for', val); executeAction('annotate'); } },
+    extract_component: { q: 'Добавить состояния?', opts: ['Да -- hover, disabled, error', 'Нет'], exec: function() { executeAction('extract_component'); } },
+    document_component: { q: 'Правила DS?', opts: ['Да, учитывать', 'По best practices'], exec: function() { executeAction('document_component'); } },
+    ai_normalize: { q: null, opts: ['Inter', 'Roboto', 'SF Pro', 'Оставить текущий'], exec: function(val) { var f = val === 'Оставить текущий' ? null : val; if (f) saveMemory('font', f); addBubble('ai', 'Нормализую...'); parent.postMessage({ pluginMessage: { type: 'ai-normalize', fontFamily: f } }, '*'); } }
+  };
+
+  var flow = flowChoices[action.id];
+  if (flow) {
+    addChoices(flow.q, flow.opts, flow.exec, action.id === 'make_responsive');
+    showInputRow();
+    return;
+  }
+
+  var sys = 'Ты AI-ассистент дизайнера в Figma. Только UI/UX. Кратко, на русском.';
+  var bubble = addStreamBubble();
+  conversationHistory.push({ role: 'user', content: 'Хочу: ' + action.label });
+  callClaudeStream(conversationHistory, sys, CFG.models.chat, function(text) {
+    bubble.innerHTML = fmt(text); scrollBottom();
+  }).then(function(full) {
+    bubble.classList.remove('streaming');
+    conversationHistory.push({ role: 'assistant', content: full });
+    showInputRow();
+  }).catch(function(e) { bubble.classList.remove('streaming'); bubble.innerHTML = fmt('Ошибка: ' + e.message); });
+}
+
+function sendUserMessage() {
+  var input = el('userInput');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  if (pendingInputCallback) { pendingInputCallback(text); return; }
+
+  addBubble('user', text);
+  conversationHistory.push({ role: 'user', content: text });
+
+  var memCtx = getMemoryContext();
+  var sys = 'Ты AI-ассистент дизайнера в Figma. Только UI/UX. На офтоп: "Это не про дизайн." Кратко, на русском.' + (memCtx ? ' ' + memCtx : '');
+  var bubble = addStreamBubble();
+
+  callClaudeStream(conversationHistory, sys, CFG.models.chat, function(text) {
+    bubble.innerHTML = fmt(text); scrollBottom();
+  }).then(function(full) {
+    bubble.classList.remove('streaming');
+    conversationHistory.push({ role: 'assistant', content: full });
+    var lc = full.toLowerCase();
+    if (lc.indexOf('выполняю') !== -1 && currentAction) executeAction(currentAction.id);
+  }).catch(function(e) { bubble.classList.remove('streaming'); bubble.innerHTML = fmt('Ошибка: ' + e.message); });
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendUserMessage(); }
+  var t = e.target;
+  t.style.height = 'auto';
+  t.style.height = Math.min(t.scrollHeight, 80) + 'px';
+}
+
+window.onmessage = function(event) {
+  var msg = event.data.pluginMessage;
+  if (!msg) return;
+  if (msg.type === 'selection') {
+    var pill = el('selPill');
+    if (msg.node) { pill.textContent = msg.node.name; pill.classList.add('active'); }
+    else { pill.textContent = 'Ничего не выбрано'; pill.classList.remove('active'); }
+  }
+  if (msg.type === 'frame-data') { runAnalysis(msg.data); }
+  if (msg.type === 'ai-rename-tree') { handleAiRenameTree(msg.tree); }
+  if (msg.type === 'extract-components-tree') { handleExtractComponentsTree(msg); }
+  if (msg.type === 'smart-autolayout-data') { handleSmartAutolayoutData(msg); }
+  if (msg.type === 'memory-loaded') {
+    if (msg.memory && Object.keys(msg.memory).length) {
+      memory = msg.memory;
+      el('memBadge').style.display = 'inline';
+    }
+  }
+  if (msg.type === 'selected-frame-for-action') {
+    if (pendingFrameCallback) { pendingFrameCallback(msg.node.name); pendingFrameCallback = null; }
+  }
+  if (msg.type === 'progress') {
+    var pb = el('progressBubble');
+    if (!pb) {
+      hideEmpty();
+      var wrap = document.createElement('div');
+      wrap.className = 'msg ai';
+      pb = document.createElement('div');
+      pb.className = 'bubble ai';
+      pb.id = 'progressBubble';
+      pb.style.color = '#7B5EF8';
+      pb.style.borderColor = '#3a2a6a';
+      wrap.appendChild(pb);
+      el('chat').appendChild(wrap);
+    }
+    pb.textContent = '⚙️ ' + msg.text;
+    scrollBottom();
+  }
+  if (msg.type === 'action-done') {
+    var pb = el('progressBubble');
+    if (pb) pb.parentNode.remove();
+    addBubble('ai', '✅ ' + msg.text);
+  }
+  if (msg.type === 'action-error') { addBubble('ai', '⚠️ ' + msg.text); }
+  if (msg.type === 'error') {
+    removeTyping();
+    addBubble('ai', '⚠️ ' + msg.text);
+    el('analyzeBtn').disabled = false;
+    showAnalyzeRow();
+  }
+};
+
+loadRemoteAssets();
+loadMemory();
+</script>
+</body>
+</html>
