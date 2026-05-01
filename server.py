@@ -88,7 +88,7 @@ REPO_RAW = 'https://raw.githubusercontent.com/Figmentblckk/figment/refs/heads/ma
 def get_prompt(name):
     if request.method == "OPTIONS":
         return cors("", 204)
-    allowed = ['analyze_frame.md','rename_layers.md','ai_normalize.md','smart_autolayout.md','audit_colors.md','annotate.md','config.json']
+    allowed = ['analyze_frame.md','rename_layers.md','ai_normalize.md','smart_autolayout.md','audit_colors.md','annotate.md','extract_components.md','config.json']
     if name not in allowed:
         return cors(jsonify({"error": "Not found"}), 404)
     try:
