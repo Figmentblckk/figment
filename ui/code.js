@@ -61,24 +61,69 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === 'ai-normalize') {
     const sel = figma.currentPage.selection;
     if (!sel.length) { figma.ui.postMessage({ type: 'action-error', text: 'Выдели фрейм' }); return; }
-    let stats = { fonts: 0, layouts: 0 };
+
+    let stats = { fonts: 0 };
     const FAMILY = msg.fontFamily || 'Inter';
-    const styleMap = { 'Thin':'Regular','Light':'Regular','Regular':'Regular','Medium':'Medium','SemiBold':'Medium','Semi Bold':'Medium','Bold':'Bold','ExtraBold':'Bold','Extra Bold':'Bold','Black':'Bold','Italic':'Regular','Medium Italic':'Medium','Bold Italic':'Bold' };
+    const styleMap = {
+      'Thin':'Regular','Light':'Regular','Regular':'Regular',
+      'Medium':'Medium','SemiBold':'Medium','Semi Bold':'Medium',
+      'Bold':'Bold','ExtraBold':'Bold','Extra Bold':'Bold','Black':'Bold',
+      'Italic':'Regular','Medium Italic':'Medium','Bold Italic':'Bold'
+    };
+
     try {
-      await Promise.all([figma.loadFontAsync({family:FAMILY,style:'Regular'}),figma.loadFontAsync({family:FAMILY,style:'Medium'}),figma.loadFontAsync({family:FAMILY,style:'Bold'})]);
-    } catch(e) { figma.ui.postMessage({ type: 'action-error', text: 'Не удалось загрузить шрифт ' + FAMILY }); return; }
-    const textNodes = [];
-    function collectText(node) { if (node.type === 'TEXT') textNodes.push(node); if ('children' in node) node.children.forEach(collectText); }
-    sel.forEach(collectText);
-    const limit = Math.min(textNodes.length, 200);
-    if (textNodes.length > 200) figma.notify('Много слоёв — обрабатываю первые 200', { timeout: 3000 });
-    for (let i = 0; i < limit; i++) {
-      const node = textNodes[i];
-      try { if (node.fontName !== figma.mixed) { node.fontName = { family: FAMILY, style: styleMap[node.fontName.style] || 'Regular' }; node.letterSpacing = { value: 0, unit: 'PERCENT' }; node.lineHeight = { unit: 'AUTO' }; stats.fonts++; } } catch(e) {}
-      if (i % 30 === 0) { figma.ui.postMessage({ type: 'progress', text: 'Шрифты: ' + i + '/' + limit }); figma.notify('Нормализация... ' + i + '/' + limit, { timeout: 500 }); }
+      await Promise.all([
+        figma.loadFontAsync({ family: FAMILY, style: 'Regular' }),
+        figma.loadFontAsync({ family: FAMILY, style: 'Medium' }),
+        figma.loadFontAsync({ family: FAMILY, style: 'Bold' })
+      ]);
+    } catch(e) {
+      figma.ui.postMessage({ type: 'action-error', text: 'Не удалось загрузить шрифт ' + FAMILY });
+      return;
     }
+
+    // Собираем все текстовые ноды
+    const textNodes = [];
+    function collectText(node) {
+      if (node.type === 'TEXT') textNodes.push(node);
+      if ('children' in node) node.children.forEach(collectText);
+    }
+    sel.forEach(collectText);
+
+    const total = textNodes.length;
+    if (total === 0) {
+      figma.ui.postMessage({ type: 'action-done', text: 'Текстовых слоёв не найдено' });
+      return;
+    }
+    if (total > 200) figma.notify('Много слоёв — обрабатываю первые 200', { timeout: 3000 });
+
+    const limit = Math.min(total, 200);
+    const BATCH = 50;
+
+    // Батчинг: обрабатываем по 50 нод, между батчами освобождаем event loop
+    for (let i = 0; i < limit; i += BATCH) {
+      const end = Math.min(i + BATCH, limit);
+
+      for (let j = i; j < end; j++) {
+        const node = textNodes[j];
+        try {
+          if (node.fontName !== figma.mixed) {
+            node.fontName = { family: FAMILY, style: styleMap[node.fontName.style] || 'Regular' };
+            node.letterSpacing = { value: 0, unit: 'PERCENT' };
+            node.lineHeight = { unit: 'AUTO' };
+            stats.fonts++;
+          }
+        } catch(e) {}
+      }
+
+      // Прогресс + пауза для освобождения event loop
+      figma.ui.postMessage({ type: 'progress', text: 'Шрифты: ' + end + '/' + limit });
+      figma.notify('Нормализация... ' + end + '/' + limit, { timeout: 600 });
+      await new Promise(r => setTimeout(r, 0));
+    }
+
     figma.notify('✅ Готово!', { timeout: 2000 });
-    figma.ui.postMessage({ type: 'action-done', text: 'AI нормализация: ' + stats.fonts + ' текстов, ' + stats.layouts + ' лейаутов' });
+    figma.ui.postMessage({ type: 'action-done', text: 'AI нормализация: ' + stats.fonts + ' текстов' });
   }
 
   if (msg.type === 'smart-autolayout-prepare') {
