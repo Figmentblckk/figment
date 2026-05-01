@@ -82,7 +82,6 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
 
-    // Собираем все текстовые ноды
     const textNodes = [];
     function collectText(node) {
       if (node.type === 'TEXT') textNodes.push(node);
@@ -91,19 +90,14 @@ figma.ui.onmessage = async (msg) => {
     sel.forEach(collectText);
 
     const total = textNodes.length;
-    if (total === 0) {
-      figma.ui.postMessage({ type: 'action-done', text: 'Текстовых слоёв не найдено' });
-      return;
-    }
+    if (total === 0) { figma.ui.postMessage({ type: 'action-done', text: 'Текстовых слоёв не найдено' }); return; }
     if (total > 200) figma.notify('Много слоёв — обрабатываю первые 200', { timeout: 3000 });
 
     const limit = Math.min(total, 200);
     const BATCH = 50;
 
-    // Батчинг: обрабатываем по 50 нод, между батчами освобождаем event loop
     for (let i = 0; i < limit; i += BATCH) {
       const end = Math.min(i + BATCH, limit);
-
       for (let j = i; j < end; j++) {
         const node = textNodes[j];
         try {
@@ -115,8 +109,6 @@ figma.ui.onmessage = async (msg) => {
           }
         } catch(e) {}
       }
-
-      // Прогресс + пауза для освобождения event loop
       figma.ui.postMessage({ type: 'progress', text: 'Шрифты: ' + end + '/' + limit });
       figma.notify('Нормализация... ' + end + '/' + limit, { timeout: 600 });
       await new Promise(r => setTimeout(r, 0));
@@ -148,7 +140,22 @@ figma.ui.onmessage = async (msg) => {
   }
 
   if (msg.type === 'smart-autolayout-apply') {
-    const plan = msg.plan; let applied = 0, errors = [];
+    const plan = msg.plan; let applied = 0, skipped = 0, errors = [];
+
+    // Проверка попарного пересечения bbox
+    function hasOverlap(nodes) {
+      const boxes = nodes.map(n => n.absoluteBoundingBox || { x: n.x, y: n.y, width: n.width, height: n.height });
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i], b = boxes[j];
+          const overlapX = a.x < b.x + b.width && a.x + a.width > b.x;
+          const overlapY = a.y < b.y + b.height && a.y + a.height > b.y;
+          if (overlapX && overlapY) return true;
+        }
+      }
+      return false;
+    }
+
     function applyContainer(container) {
       if (container.children && container.children.length > 0) container.children.forEach(applyContainer);
       if (!container.nodeIds || container.nodeIds.length < 2) return;
@@ -157,6 +164,14 @@ figma.ui.onmessage = async (msg) => {
         if (nodes.length < 2) return;
         const parent = nodes[0].parent;
         if (!parent || !nodes.every(n => n.parent && n.parent.id === parent.id)) return;
+
+        // Пропускаем контейнер если есть перекрытия
+        if (hasOverlap(nodes)) {
+          skipped++;
+          figma.ui.postMessage({ type: 'progress', text: 'Пропущено (перекрытие): ' + (container.name || container.label) });
+          return;
+        }
+
         const newFrame = figma.createFrame();
         newFrame.name = container.name || container.label || 'auto-layout';
         let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -172,14 +187,19 @@ figma.ui.onmessage = async (msg) => {
         newFrame.primaryAxisAlignItems=container.primaryAxisAlignItems||'MIN';newFrame.counterAxisAlignItems=container.counterAxisAlignItems||'MIN';
         newFrame.primaryAxisSizingMode=container.primaryAxisSizingMode||'AUTO';newFrame.counterAxisSizingMode=container.counterAxisSizingMode||'AUTO';
         nodes.forEach(n => newFrame.appendChild(n));
-        applied++;figma.ui.postMessage({type:'progress',text:'Контейнеры: '+applied});
+        applied++;
+        figma.ui.postMessage({ type: 'progress', text: 'Контейнеры: ' + applied });
       } catch(e) { errors.push((container.name||container.label)+': '+e.message); }
     }
+
     if (plan.containers) plan.containers.forEach(applyContainer);
+
     let renamed = 0;
     if (plan.renames) Object.keys(plan.renames).forEach(function(nodeId) { try { const node=figma.getNodeById(nodeId); if(node){node.name=plan.renames[nodeId];renamed++;} } catch(e){} });
+
     figma.notify('✅ Готово!', { timeout: 2000 });
-    figma.ui.postMessage({ type: 'action-done', text: 'Умный лейаут: '+applied+' контейнеров, '+renamed+' переименовано'+(errors.length?'. Ошибки: '+errors.slice(0,2).join(', '):'') });
+    const skipMsg = skipped ? ', ' + skipped + ' пропущено (перекрытия)' : '';
+    figma.ui.postMessage({ type: 'action-done', text: 'Умный лейаут: '+applied+' контейнеров, '+renamed+' переименовано'+skipMsg+(errors.length?'. Ошибки: '+errors.slice(0,2).join(', '):'') });
   }
 
   if (msg.type === 'ai-rename-prepare') {
